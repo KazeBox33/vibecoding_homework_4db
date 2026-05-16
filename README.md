@@ -165,6 +165,7 @@ vibecoding_homework_4db/
 | `sql-agent-coach/core/catalog.py` | 场景库、schema、样例数据、题库 |
 | `sql-agent-coach/static/` | 浏览器交互界面 |
 | `sql-agent-coach/docs/technical_report.md` | 技术原理与架构报告 |
+| `sql-agent-coach/docs/function_flow_summary.md` | 功能模块与流程图总结 |
 | `sql-agent-coach/docs/output.pptx` | 演示 PPT |
 
 ## 当前实现说明

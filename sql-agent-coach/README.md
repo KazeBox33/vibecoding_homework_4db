@@ -80,6 +80,7 @@ sql-agent-coach/
     styles.css
   docs/
     technical_report.md   # 技术原理与架构报告
+    function_flow_summary.md # 功能模块与流程图总结
   tests/
     test_agent.py
 ```
