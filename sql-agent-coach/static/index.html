@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SQL Agent Coach</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <h1>SQL Agent Coach</h1>
+        <p>数据库生成、SQL 出题、自动判题、错因分析和学习建议的一体化练习闭环</p>
+      </div>
+      <div class="score-panel">
+        <span>平均分</span>
+        <strong id="avgScore">0</strong>
+        <small id="correctRate">正确率 0%</small>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <section class="panel">
+          <h2>场景与题目</h2>
+          <div id="agentStatus" class="agent-status">Agent 状态检测中...</div>
+          <label>
+            数据场景
+            <select id="scenarioSelect"></select>
+          </label>
+          <div class="filters">
+            <label>
+              难度
+              <select id="difficultySelect"></select>
+            </label>
+            <label>
+              题型
+              <select id="kindSelect"></select>
+            </label>
+          </div>
+          <button id="resetBtn" class="primary">生成数据库与题目</button>
+          <div id="exerciseList" class="exercise-list"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Schema 与样例数据</h2>
+          <div id="schemaView" class="schema-view"></div>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <article class="panel exercise-panel">
+          <div class="exercise-head">
+            <div>
+              <span id="exerciseMeta" class="pill">请选择题目</span>
+              <h2 id="exerciseTitle">等待生成题目</h2>
+            </div>
+            <button id="hintBtn" class="ghost">提示</button>
+          </div>
+          <p id="exercisePrompt" class="prompt">点击左侧题目开始练习。</p>
+          <div class="testcase-row">
+            <label>
+              测试样例
+              <select id="testCaseSelect"></select>
+            </label>
+            <button id="loadCaseBtn" class="ghost">载入样例</button>
+            <button id="runCaseBtn" class="primary">运行样例</button>
+          </div>
+          <div id="testCaseNote" class="testcase-note muted">选择样例后可直接运行判题。</div>
+          <textarea id="sqlInput" spellcheck="false" placeholder="在这里输入 SELECT 查询..."></textarea>
+          <div class="actions">
+            <button id="submitBtn" class="primary">提交判题</button>
+            <button id="solutionBtn" class="ghost">查看参考答案</button>
+          </div>
+        </article>
+
+        <section class="panel result-panel">
+          <h2>判题反馈</h2>
+          <div id="feedback" class="feedback muted">提交答案后显示结果、错因解析和下一步建议。</div>
+          <div class="result-grid">
+            <div>
+              <h3>你的结果</h3>
+              <div id="actualRows" class="table-wrap"></div>
+            </div>
+            <div>
+              <h3>参考结果</h3>
+              <div id="expectedRows" class="table-wrap"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel qa-panel">
+          <h2>Agent 答疑</h2>
+          <div class="qa-row">
+            <input id="questionInput" placeholder="例如：这题为什么要 GROUP BY？" />
+            <button id="askBtn" class="primary">提问</button>
+          </div>
+          <div id="qaAnswer" class="muted">可询问题目思路、表关系、聚合或 JOIN。</div>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
