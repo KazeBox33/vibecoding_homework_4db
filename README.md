@@ -59,26 +59,69 @@ flowchart LR
 
 ## 快速开始
 
-### 1. 克隆仓库
+### 完整启动流程
+
+下面流程适合第一次从 GitHub 拉取项目的使用者。
+
+#### 1. 克隆仓库
 
 ```powershell
 git clone git@github.com:KazeBox33/vibecoding_homework_4db.git
 cd vibecoding_homework_4db\sql-agent-coach
 ```
 
-### 2. 启动系统
+如果没有配置 SSH，也可以使用 HTTPS：
 
-项目默认只依赖 Python 标准库，无需额外安装依赖即可运行：
+```powershell
+git clone https://github.com/KazeBox33/vibecoding_homework_4db.git
+cd vibecoding_homework_4db\sql-agent-coach
+```
+
+#### 2. 检查 Python
+
+项目默认只依赖 Python 标准库，无需安装额外依赖。建议使用 Python 3.10+：
+
+```powershell
+python --version
+```
+
+#### 3. 启动系统
+
+不配置 API Key 也可以启动，此时系统会使用本地规则兜底判题：
 
 ```powershell
 python app.py
 ```
 
-浏览器打开：
+看到服务启动后，在浏览器打开：
 
 ```text
 http://127.0.0.1:8000
 ```
+
+#### 4. 可选：启用真实 DeepSeek Agent
+
+如果希望 Judge Agent 和 Tutor Agent 调用真实大模型，在同一个 PowerShell 窗口中先设置环境变量，再启动：
+
+```powershell
+$env:DEEPSEEK_API_KEY="你的 DeepSeek API Key"
+$env:SQL_COACH_JUDGE_PROVIDER="deepseek"
+$env:SQL_COACH_LLM_MODEL="deepseek-v4-flash"
+$env:SQL_COACH_LLM_BASE_URL="https://api.deepseek.com"
+python app.py
+```
+
+配置成功后，页面中的 Agent 状态会显示已启用 LLM Agent，判题反馈会标记 `LLM Judge Agent`。
+
+#### 5. 页面使用流程
+
+1. 在左侧选择数据场景，例如“电商订单”或“校园课程”。
+2. 按难度、题型、关键词或知识点筛选题目，也可以随机选题。
+3. 查看题目下方的相关表结构、样例数据、目标输出列和建议步骤。
+4. 在 SQL 编辑区输入答案，或选择内置测试样例一键载入。
+5. 点击“提交判题”，系统会执行参考 SQL 和用户 SQL，并给出得分、错因、结果对比和下一步建议。
+6. 在 Agent 答疑区追问，例如“这题为什么要 GROUP BY？”或“我下一步应该怎么写？”。同一 session 的答疑会保留上下文。
+7. 练习多题后查看平均分、正确率和学习建议。
 
 ## 接入 DeepSeek Judge Agent
 

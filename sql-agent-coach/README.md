@@ -18,10 +18,35 @@
 - 记录练习历史，输出最终成绩与学习建议
 - 提供本地浏览器 demo
 
-## 运行
+## 从 GitHub 拉取后如何启动
+
+### 1. 进入项目目录
+
+如果你在仓库根目录：
+
+```powershell
+cd sql-agent-coach
+```
+
+如果你是在本机当前工程目录：
 
 ```powershell
 cd "E:\New project\sql-agent-coach"
+```
+
+### 2. 检查 Python
+
+项目默认只依赖 Python 标准库，无需安装额外依赖。建议 Python 3.10+：
+
+```powershell
+python --version
+```
+
+### 3. 启动本地服务
+
+不配置 API Key 也可以运行，此时系统会使用本地规则兜底判题：
+
+```powershell
 python app.py
 ```
 
@@ -30,6 +55,16 @@ python app.py
 ```text
 http://127.0.0.1:8000
 ```
+
+### 4. 页面使用流程
+
+1. 选择数据场景，例如“电商订单”或“校园课程”。
+2. 用难度、题型、关键词或知识点筛选题目，也可以随机选题。
+3. 查看当前题目的相关表结构、样例数据、目标输出列和建议解题步骤。
+4. 在 SQL 编辑区写答案，或从内置测试样例中选择正确/错误/语法错误/安全拦截样例。
+5. 点击“提交判题”，系统会展示得分、错因、下一步建议、用户结果和参考结果。
+6. 在 Agent 答疑区提问。Tutor Agent 会结合当前题目、schema 和同一 session 的历史对话回答。
+7. 做完多道题后查看平均分、正确率和学习建议。
 
 ## 接入 LLM Judge Agent
 
@@ -57,6 +92,20 @@ python app.py
 ```
 
 启用后，判题反馈会显示 `LLM Judge Agent`。当前实现没有引入 LangChain；它是自定义 Agent 编排：SQLite 工具执行、结果差异构造、JudgeAgent 调用大模型返回结构化裁决。
+
+## 查看项目总结 PPT
+
+仓库中还包含一份网页 PPT 汇报材料：
+
+```text
+docs/project-summary-ppt/index.html
+```
+
+直接用浏览器打开即可横向翻页演示：
+
+- 左右方向键翻页
+- `ESC` 打开索引
+- `B` 切换静态模式
 
 ## 测试
 
