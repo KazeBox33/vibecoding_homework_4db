@@ -50,6 +50,7 @@ async function startSession() {
   populateConceptOptions();
   renderExercises();
   chooseExercise(exercises[0]?.id);
+  renderChatHistory([]);
   renderProgress({ attempts: 0, average_score: 0, correct_rate: 0, advice: "" });
   $("feedback").className = "feedback muted";
   $("feedback").textContent = "新数据库已生成。请选择题目并提交 SQL。";
@@ -292,18 +293,20 @@ async function askAgent() {
   if (!question) return;
   $("askBtn").disabled = true;
   $("askBtn").textContent = "回复中...";
-  $("qaAnswer").textContent = "SQL Tutor Agent 正在思考...\n";
+  appendChatMessage("user", question);
+  $("questionInput").value = "";
+  const assistantBubble = appendChatMessage("assistant", "SQL Tutor Agent 正在思考...");
   try {
-    await streamAgentAnswer(question);
+    await streamAgentAnswer(question, assistantBubble);
   } catch (error) {
-    $("qaAnswer").textContent = `流式回复失败：${error.message}`;
+    assistantBubble.textContent = `流式回复失败：${error.message}`;
   } finally {
     $("askBtn").disabled = false;
     $("askBtn").textContent = "提问";
   }
 }
 
-async function streamAgentAnswer(question) {
+async function streamAgentAnswer(question, assistantBubble) {
   const response = await fetch("/api/ask-stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -333,22 +336,67 @@ async function streamAgentAnswer(question) {
       if (!line.trim()) continue;
       const event = JSON.parse(line);
       if (event.type === "meta") {
-        $("qaAnswer").textContent = `${tutorSourceLabel(event.source)}\n`;
+        assistantBubble.textContent = `${tutorSourceLabel(event.source)}\n`;
         answerStarted = true;
       } else if (event.type === "delta") {
         if (!answerStarted) {
-          $("qaAnswer").textContent = "";
+          assistantBubble.textContent = "";
           answerStarted = true;
         }
-        $("qaAnswer").textContent += event.text;
+        assistantBubble.textContent += event.text;
+        scrollChatToBottom();
       }
     }
   }
 
   if (buffer.trim()) {
     const event = JSON.parse(buffer);
-    if (event.type === "delta") $("qaAnswer").textContent += event.text;
+    if (event.type === "delta") assistantBubble.textContent += event.text;
   }
+  scrollChatToBottom();
+}
+
+function renderChatHistory(messages) {
+  const root = $("chatMessages");
+  root.innerHTML = "";
+  if (!messages.length) {
+    root.innerHTML = '<div class="chat-empty">可询问题目思路、表关系、聚合或 JOIN。</div>';
+    return;
+  }
+  messages.forEach((message) => appendChatMessage(message.role, message.content));
+}
+
+function appendChatMessage(role, content) {
+  const root = $("chatMessages");
+  const empty = root.querySelector(".chat-empty");
+  if (empty) root.innerHTML = "";
+  const wrapper = document.createElement("div");
+  wrapper.className = `chat-message ${role === "user" ? "user" : "assistant"}`;
+  const label = document.createElement("div");
+  label.className = "chat-role";
+  label.textContent = role === "user" ? "你" : "SQL Tutor Agent";
+  const bubble = document.createElement("div");
+  bubble.className = "chat-bubble";
+  bubble.textContent = content;
+  wrapper.appendChild(label);
+  wrapper.appendChild(bubble);
+  root.appendChild(wrapper);
+  scrollChatToBottom();
+  return bubble;
+}
+
+function scrollChatToBottom() {
+  const root = $("chatMessages");
+  root.scrollTop = root.scrollHeight;
+}
+
+async function clearChat() {
+  if (!sessionId) return;
+  await api("/api/chat-clear", {
+    method: "POST",
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  renderChatHistory([]);
 }
 
 function renderProgress(summary) {
@@ -401,6 +449,10 @@ $("submitBtn").addEventListener("click", submitAnswer);
 $("solutionBtn").addEventListener("click", showSolution);
 $("hintBtn").addEventListener("click", showHint);
 $("askBtn").addEventListener("click", askAgent);
+$("questionInput").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") askAgent();
+});
+$("clearChatBtn").addEventListener("click", clearChat);
 $("loadCaseBtn").addEventListener("click", loadTestCase);
 $("runCaseBtn").addEventListener("click", runTestCase);
 $("testCaseSelect").addEventListener("change", updateTestCaseNote);

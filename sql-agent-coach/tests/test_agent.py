@@ -137,6 +137,24 @@ class SqlLearningAgentTest(unittest.TestCase):
         self.assertTrue(any(event.get("type") == "delta" for event in events))
         self.assertEqual(events[-1]["type"], "done")
 
+    def test_chat_history_records_turns_and_can_clear(self):
+        list(
+            self.agent.stream_answer_question(
+                self.session,
+                "第一步应该怎么写？",
+                "eco-basic-where",
+            )
+        )
+        history = self.agent.get_chat_history(self.session)
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0]["role"], "user")
+        self.assertEqual(history[1]["role"], "assistant")
+        self.assertIn("第一步", history[0]["content"])
+
+        result = self.agent.clear_chat_history(self.session)
+        self.assertTrue(result["ok"])
+        self.assertEqual(self.agent.get_chat_history(self.session), [])
+
 
 class JudgeAgentConfigTest(unittest.TestCase):
     def test_deepseek_env_selects_deepseek_defaults(self):

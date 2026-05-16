@@ -404,15 +404,78 @@ th {
   background: var(--surface-alt);
 }
 
-#qaAnswer {
-  margin-top: 12px;
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
 button:disabled {
   cursor: wait;
   opacity: 0.72;
+}
+
+.qa-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+}
+
+.qa-head h2 {
+  margin-bottom: 4px;
+}
+
+.qa-head p {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.chat-messages {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+}
+
+.chat-empty {
+  color: var(--muted);
+}
+
+.chat-message {
+  display: grid;
+  gap: 4px;
+  max-width: 86%;
+}
+
+.chat-message.user {
+  justify-self: end;
+}
+
+.chat-message.assistant {
+  justify-self: start;
+}
+
+.chat-role {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chat-bubble {
+  padding: 10px 12px;
+  border-radius: 8px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+.chat-message.user .chat-bubble {
+  color: #fff;
+  background: var(--brand);
+}
+
+.chat-message.assistant .chat-bubble {
+  color: var(--ink);
+  background: #eef4ff;
+  border: 1px solid #d8e6ff;
 }
 
 @media (max-width: 980px) {

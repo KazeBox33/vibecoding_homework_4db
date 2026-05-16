@@ -28,11 +28,20 @@ class Attempt:
 
 
 @dataclass
+class ChatMessage:
+    role: str
+    content: str
+    exercise_id: str | None = None
+    created_at: float = field(default_factory=time.time)
+
+
+@dataclass
 class CoachSession:
     session_id: str
     scenario_key: str
     connection: sqlite3.Connection
     attempts: list[Attempt] = field(default_factory=list)
+    chat_messages: list[ChatMessage] = field(default_factory=list)
 
 
 class SqlLearningAgent:
@@ -221,12 +230,16 @@ class SqlLearningAgent:
         exercise = self._find_exercise(exercise_id) if exercise_id else None
         schema = self.get_schema_snapshot(session)
         deterministic_answer = self._local_answer_question(schema, question, exercise)
+        history = self._recent_chat_history(session)
+        session.chat_messages.append(ChatMessage("user", question, exercise_id))
         tutor_answer = self.judge_agent.answer_tutor_question(
             schema=schema,
             exercise=self._public_exercise(exercise) if exercise else None,
             question=question,
             deterministic_answer=deterministic_answer,
+            conversation_history=history,
         )
+        session.chat_messages.append(ChatMessage("assistant", tutor_answer.answer, exercise_id))
         return {
             "answer": tutor_answer.answer,
             "source": tutor_answer.source,
@@ -242,12 +255,47 @@ class SqlLearningAgent:
         exercise = self._find_exercise(exercise_id) if exercise_id else None
         schema = self.get_schema_snapshot(session)
         deterministic_answer = self._local_answer_question(schema, question, exercise)
-        yield from self.judge_agent.stream_tutor_question(
+        history = self._recent_chat_history(session)
+        session.chat_messages.append(ChatMessage("user", question, exercise_id))
+        answer_parts: list[str] = []
+        for event in self.judge_agent.stream_tutor_question(
             schema=schema,
             exercise=self._public_exercise(exercise) if exercise else None,
             question=question,
             deterministic_answer=deterministic_answer,
-        )
+            conversation_history=history,
+        ):
+            if event.get("type") == "delta":
+                answer_parts.append(event.get("text", ""))
+            yield event
+        answer = "".join(answer_parts).strip()
+        if answer:
+            session.chat_messages.append(ChatMessage("assistant", answer, exercise_id))
+
+    def get_chat_history(self, session: CoachSession) -> list[dict[str, Any]]:
+        return [
+            {
+                "role": message.role,
+                "content": message.content,
+                "exercise_id": message.exercise_id,
+                "created_at": message.created_at,
+            }
+            for message in session.chat_messages
+        ]
+
+    def clear_chat_history(self, session: CoachSession) -> dict[str, Any]:
+        session.chat_messages.clear()
+        return {"ok": True, "messages": []}
+
+    def _recent_chat_history(self, session: CoachSession, limit: int = 10) -> list[dict[str, str]]:
+        return [
+            {
+                "role": message.role,
+                "content": message.content,
+                "exercise_id": message.exercise_id or "",
+            }
+            for message in session.chat_messages[-limit:]
+        ]
 
     def _local_answer_question(
         self,

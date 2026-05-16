@@ -127,6 +127,7 @@ class JudgeAgent:
         exercise: dict[str, Any] | None,
         question: str,
         deterministic_answer: str,
+        conversation_history: list[dict[str, str]] | None = None,
     ) -> TutorAnswer:
         if not self.is_enabled():
             return TutorAnswer(
@@ -140,6 +141,7 @@ class JudgeAgent:
             exercise=exercise,
             question=question,
             deterministic_answer=deterministic_answer,
+            conversation_history=conversation_history or [],
         )
         try:
             raw = self._call_openai_compatible(payload)
@@ -164,6 +166,7 @@ class JudgeAgent:
         exercise: dict[str, Any] | None,
         question: str,
         deterministic_answer: str,
+        conversation_history: list[dict[str, str]] | None = None,
     ) -> Iterator[dict[str, str]]:
         if not self.is_enabled():
             yield {"type": "meta", "source": "local_fallback", "agent": self.agent_name}
@@ -176,6 +179,7 @@ class JudgeAgent:
             exercise=exercise,
             question=question,
             deterministic_answer=deterministic_answer,
+            conversation_history=conversation_history or [],
             stream=True,
         )
         try:
@@ -244,6 +248,7 @@ class JudgeAgent:
         system_prompt = (
             "You are a patient SQL tutor agent for Chinese learners. "
             "Answer the learner's question using the provided schema and exercise. "
+            "Use the conversation_history to understand follow-up questions, pronouns, and prior SQL attempts. "
             "Do not solve by dumping the full final SQL unless the learner explicitly asks for the answer. "
             "Explain the needed concepts, table relationships, and next step. "
             f"{response_instruction}"

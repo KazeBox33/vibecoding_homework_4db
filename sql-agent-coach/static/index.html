@@ -109,12 +109,20 @@
         </section>
 
         <section class="panel qa-panel">
-          <h2>Agent 答疑</h2>
+          <div class="qa-head">
+            <div>
+              <h2>Agent 答疑</h2>
+              <p>同一练习会话会记住之前的对话，用于理解追问。</p>
+            </div>
+            <button id="clearChatBtn" class="ghost">清空会话</button>
+          </div>
+          <div id="chatMessages" class="chat-messages">
+            <div class="chat-empty">可询问题目思路、表关系、聚合或 JOIN。</div>
+          </div>
           <div class="qa-row">
             <input id="questionInput" placeholder="例如：这题为什么要 GROUP BY？" />
             <button id="askBtn" class="primary">提问</button>
           </div>
-          <div id="qaAnswer" class="muted">可询问题目思路、表关系、聚合或 JOIN。</div>
         </section>
       </section>
     </main>

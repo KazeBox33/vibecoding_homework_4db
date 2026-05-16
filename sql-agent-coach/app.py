@@ -35,6 +35,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/api/report":
             session = self._require_session(parse_qs(parsed.query))
             return self._json(agent.build_progress_report(session))
+        if parsed.path == "/api/chat-history":
+            session = self._require_session(parse_qs(parsed.query))
+            return self._json({"messages": agent.get_chat_history(session)})
         return self._static(parsed.path)
 
     def do_POST(self) -> None:
@@ -80,6 +83,9 @@ class Handler(BaseHTTPRequestHandler):
                         exercise_id=payload.get("exercise_id"),
                     )
                 )
+            if parsed.path == "/api/chat-clear":
+                session = sessions[payload["session_id"]]
+                return self._json(agent.clear_chat_history(session))
         except KeyError as exc:
             return self._json({"error": f"缺少或无效参数：{exc}"}, status=400)
         except Exception as exc:
