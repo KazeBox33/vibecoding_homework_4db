@@ -315,6 +315,9 @@ class SqlLearningAgent:
             if key not in {"expected_sql"}
         }
         public["test_cases"] = self._build_test_cases(exercise)
+        public["required_tables"] = self._extract_required_tables(exercise)
+        public["output_columns"] = self._extract_output_columns(exercise)
+        public["solution_steps"] = self._build_solution_steps(exercise)
         return public
 
     def _build_test_cases(self, exercise: dict[str, Any]) -> list[dict[str, str]]:
@@ -350,6 +353,53 @@ class SqlLearningAgent:
         schema_sql = self.scenarios[scenario_key]["schema_sql"]
         match = re.search(r"CREATE\s+TABLE\s+([a-zA-Z_][a-zA-Z0-9_]*)", schema_sql, re.IGNORECASE)
         return match.group(1) if match else "sqlite_master"
+
+    def _scenario_table_names(self, scenario_key: str) -> list[str]:
+        schema_sql = self.scenarios[scenario_key]["schema_sql"]
+        return re.findall(r"CREATE\s+TABLE\s+([a-zA-Z_][a-zA-Z0-9_]*)", schema_sql, re.IGNORECASE)
+
+    def _extract_required_tables(self, exercise: dict[str, Any]) -> list[str]:
+        sql = exercise["expected_sql"].lower()
+        tables = [table for table in self._scenario_table_names(exercise["scenario"]) if re.search(rf"\b{re.escape(table.lower())}\b", sql)]
+        return tables or [self._first_table_name(exercise["scenario"])]
+
+    def _extract_output_columns(self, exercise: dict[str, Any]) -> list[str]:
+        sql = exercise["expected_sql"].strip()
+        match = re.search(r"select\s+(.*?)\s+from\s", sql, re.IGNORECASE | re.DOTALL)
+        if not match:
+            return []
+        select_part = re.sub(r"\s+", " ", match.group(1)).strip()
+        columns = []
+        for item in select_part.split(","):
+            item = item.strip()
+            alias_match = re.search(r"\bas\s+([a-zA-Z_][a-zA-Z0-9_]*)$", item, re.IGNORECASE)
+            if alias_match:
+                columns.append(alias_match.group(1))
+                continue
+            plain = item.split(".")[-1].strip()
+            plain = re.sub(r"\(.*\)", "", plain).strip()
+            if plain:
+                columns.append(plain)
+        return columns
+
+    def _build_solution_steps(self, exercise: dict[str, Any]) -> list[str]:
+        steps = ["先确认题目要求的输出列和排序方式。"]
+        concepts = set(exercise["concepts"])
+        if "JOIN" in concepts:
+            steps.append("根据相关表的主键/外键写 JOIN 条件。")
+        if any(item in concepts for item in ["WHERE", "筛选查询"]):
+            steps.append("把普通筛选条件写在 WHERE 中。")
+        if any(item in concepts for item in ["SUM", "AVG", "GROUP BY"]):
+            steps.append("确定分组粒度，再写聚合函数和 GROUP BY。")
+        if "HAVING" in concepts:
+            steps.append("对聚合后的结果使用 HAVING 过滤。")
+        if any(item in concepts for item in ["WITH", "子查询"]):
+            steps.append("先拆出中间结果，再在外层查询中比较或筛选。")
+        if any(item in concepts for item in ["窗口函数", "RANK", "PARTITION BY"]):
+            steps.append("用窗口函数按业务维度分区并排序，再筛选排名。")
+        if "ORDER BY" in concepts:
+            steps.append("最后补上 ORDER BY，确保结果顺序符合题意。")
+        return steps
 
     def _query(self, conn: sqlite3.Connection, sql: str, trusted: bool = False) -> list[dict[str, Any]]:
         cleaned = sql.strip()

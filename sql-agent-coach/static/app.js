@@ -2,7 +2,9 @@ let sessionId = null;
 let currentScenario = "ecommerce";
 let currentExercise = null;
 let exercises = [];
+let schemaSnapshot = null;
 let lastResult = null;
+const exerciseAttempts = new Map();
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,8 +44,10 @@ async function startSession() {
   });
   sessionId = data.session_id;
   renderAgentStatus(data.agent_status);
+  schemaSnapshot = data.schema;
   renderSchema(data.schema);
   exercises = data.exercises;
+  populateConceptOptions();
   renderExercises();
   chooseExercise(exercises[0]?.id);
   renderProgress({ attempts: 0, average_score: 0, correct_rate: 0, advice: "" });
@@ -58,28 +62,60 @@ async function refreshExercises() {
   const kind = encodeURIComponent($("kindSelect").value);
   const data = await api(`/api/exercises?scenario=${currentScenario}&difficulty=${difficulty}&kind=${kind}`);
   exercises = data.exercises;
+  populateConceptOptions();
   renderExercises();
-  chooseExercise(exercises[0]?.id);
+  chooseExercise(filteredExercises()[0]?.id);
 }
 
 function renderExercises() {
   const list = $("exerciseList");
   list.innerHTML = "";
-  if (!exercises.length) {
+  const visibleExercises = filteredExercises();
+  if (!visibleExercises.length) {
     list.innerHTML = '<div class="muted">当前筛选条件下没有题目。</div>';
     return;
   }
-  exercises.forEach((exercise) => {
+  visibleExercises.forEach((exercise) => {
     const item = document.createElement("div");
     item.className = "exercise-card" + (currentExercise?.id === exercise.id ? " active" : "");
     item.onclick = () => chooseExercise(exercise.id);
+    const result = exerciseAttempts.get(exercise.id);
+    const resultText = result ? ` · 最近 ${result.score} 分` : "";
     item.innerHTML = `
       <span class="pill">${exercise.difficulty} · ${exercise.kind}</span>
       <strong>${exercise.title}</strong>
-      <small class="muted">${exercise.concepts.join(" / ")}</small>
+      <small class="muted">${exercise.concepts.join(" / ")}${resultText}</small>
     `;
     list.appendChild(item);
   });
+}
+
+function filteredExercises() {
+  const keyword = $("searchInput").value.trim().toLowerCase();
+  const concept = $("conceptSelect").value;
+  return exercises.filter((exercise) => {
+    const conceptMatched = !concept || concept === "全部" || exercise.concepts.includes(concept);
+    const haystack = [
+      exercise.title,
+      exercise.prompt,
+      exercise.difficulty,
+      exercise.kind,
+      ...(exercise.concepts || []),
+      ...(exercise.required_tables || []),
+      ...(exercise.output_columns || []),
+    ]
+      .join(" ")
+      .toLowerCase();
+    const keywordMatched = !keyword || haystack.includes(keyword);
+    return conceptMatched && keywordMatched;
+  });
+}
+
+function populateConceptOptions() {
+  const current = $("conceptSelect").value || "全部";
+  const concepts = Array.from(new Set(exercises.flatMap((exercise) => exercise.concepts || []))).sort();
+  optionList($("conceptSelect"), ["全部", ...concepts]);
+  $("conceptSelect").value = concepts.includes(current) ? current : "全部";
 }
 
 function chooseExercise(id) {
@@ -89,15 +125,50 @@ function chooseExercise(id) {
     $("exerciseMeta").textContent = "无题目";
     $("exerciseTitle").textContent = "没有匹配题目";
     $("exercisePrompt").textContent = "请调整难度或题型筛选。";
+    $("exerciseGuide").innerHTML = "";
+    $("focusedSchemaView").innerHTML = "";
     renderTestCases([]);
     return;
   }
   $("exerciseMeta").textContent = `${currentExercise.difficulty} · ${currentExercise.kind}`;
   $("exerciseTitle").textContent = currentExercise.title;
   $("exercisePrompt").textContent = currentExercise.prompt;
+  renderExerciseGuide(currentExercise);
+  renderFocusedSchema(currentExercise);
   renderTestCases(currentExercise.test_cases || []);
   $("sqlInput").value = "";
   lastResult = null;
+}
+
+function renderExerciseGuide(exercise) {
+  const tables = exercise.required_tables?.length ? exercise.required_tables : ["查看左侧 Schema"];
+  const columns = exercise.output_columns?.length ? exercise.output_columns : ["按题目要求输出"];
+  const steps = exercise.solution_steps?.length ? exercise.solution_steps : ["先观察样例数据，再逐步补全 SQL。"];
+  $("exerciseGuide").innerHTML = `
+    <div class="guide-box">
+      <strong>需要关注的表</strong>
+      <ul>${tables.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    </div>
+    <div class="guide-box">
+      <strong>目标输出列</strong>
+      <ul>${columns.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    </div>
+    <div class="guide-box">
+      <strong>建议解题步骤</strong>
+      <ul>${steps.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+    </div>
+  `;
+}
+
+function renderFocusedSchema(exercise) {
+  const root = $("focusedSchemaView");
+  if (!schemaSnapshot || !exercise?.required_tables?.length) {
+    root.innerHTML = '<div class="muted">请选择题目后查看相关表。</div>';
+    return;
+  }
+  const tables = schemaSnapshot.tables.filter((table) => exercise.required_tables.includes(table.table));
+  root.innerHTML = "";
+  tables.forEach((table) => root.appendChild(schemaTableElement(table, true)));
 }
 
 function renderTestCases(testCases) {
@@ -139,18 +210,22 @@ function renderSchema(schema) {
   const root = $("schemaView");
   root.innerHTML = "";
   schema.tables.forEach((table) => {
-    const box = document.createElement("div");
-    box.className = "schema-table";
-    const columns = table.columns
-      .map((column) => `${column.name} ${column.type}${column.pk ? " PK" : ""}`)
-      .join(" · ");
-    box.innerHTML = `<header>${table.table}</header><div class="columns">${columns}</div>`;
-    const preview = document.createElement("div");
-    preview.className = "table-wrap";
-    preview.innerHTML = tableHtml(table.preview);
-    box.appendChild(preview);
-    root.appendChild(box);
+    root.appendChild(schemaTableElement(table, false));
   });
+}
+
+function schemaTableElement(table, focused) {
+  const box = document.createElement("div");
+  box.className = "schema-table" + (focused ? " focused" : "");
+  const columns = table.columns
+    .map((column) => `${column.name} ${column.type}${column.pk ? " PK" : ""}`)
+    .join(" · ");
+  box.innerHTML = `<header>${table.table}</header><div class="columns">${columns}</div>`;
+  const preview = document.createElement("div");
+  preview.className = "table-wrap";
+  preview.innerHTML = tableHtml(table.preview);
+  box.appendChild(preview);
+  return box;
 }
 
 async function submitAnswer() {
@@ -161,6 +236,8 @@ async function submitAnswer() {
     body: JSON.stringify({ session_id: sessionId, exercise_id: currentExercise.id, sql }),
   });
   lastResult = data;
+  exerciseAttempts.set(currentExercise.id, { score: data.score, correct: data.correct });
+  renderExercises();
   $("feedback").className = `feedback ${data.correct ? "ok" : "bad"}`;
   $("feedback").innerHTML = `
     <strong>${data.correct ? "正确" : "需要修改"} · ${data.score} 分 · ${judgeLabel(data.judge_source)}</strong><br>
@@ -170,6 +247,29 @@ async function submitAnswer() {
   $("actualRows").innerHTML = tableHtml(data.actual_rows);
   $("expectedRows").innerHTML = tableHtml(data.expected_rows);
   renderProgress(data.summary);
+}
+
+function chooseRandomExercise() {
+  const visibleExercises = filteredExercises();
+  if (!visibleExercises.length) return;
+  const next = visibleExercises[Math.floor(Math.random() * visibleExercises.length)];
+  chooseExercise(next.id);
+}
+
+function recommendExercise() {
+  const visibleExercises = filteredExercises();
+  if (!visibleExercises.length) return;
+  const unfinished = visibleExercises.find((exercise) => !exerciseAttempts.has(exercise.id));
+  if (unfinished) {
+    chooseExercise(unfinished.id);
+    return;
+  }
+  const weakest = [...visibleExercises].sort((a, b) => {
+    const scoreA = exerciseAttempts.get(a.id)?.score ?? 101;
+    const scoreB = exerciseAttempts.get(b.id)?.score ?? 101;
+    return scoreA - scoreB;
+  })[0];
+  chooseExercise(weakest.id);
 }
 
 function showSolution() {
@@ -304,6 +404,16 @@ $("askBtn").addEventListener("click", askAgent);
 $("loadCaseBtn").addEventListener("click", loadTestCase);
 $("runCaseBtn").addEventListener("click", runTestCase);
 $("testCaseSelect").addEventListener("change", updateTestCaseNote);
+$("searchInput").addEventListener("input", () => {
+  renderExercises();
+  if (!filteredExercises().some((exercise) => exercise.id === currentExercise?.id)) chooseExercise(filteredExercises()[0]?.id);
+});
+$("conceptSelect").addEventListener("change", () => {
+  renderExercises();
+  if (!filteredExercises().some((exercise) => exercise.id === currentExercise?.id)) chooseExercise(filteredExercises()[0]?.id);
+});
+$("randomBtn").addEventListener("click", chooseRandomExercise);
+$("recommendBtn").addEventListener("click", recommendExercise);
 $("difficultySelect").addEventListener("change", refreshExercises);
 $("kindSelect").addEventListener("change", refreshExercises);
 $("scenarioSelect").addEventListener("change", startSession);

@@ -78,6 +78,12 @@ class SqlLearningAgentTest(unittest.TestCase):
         self.assertIn("正确样例：参考答案", labels)
         self.assertIn("安全样例：非只读 SQL 拦截", labels)
 
+    def test_exercise_includes_learning_metadata(self):
+        exercise = self.agent.get_exercise("eco-basic-join")
+        self.assertEqual(exercise["required_tables"], ["customers", "orders"])
+        self.assertIn("order_id", exercise["output_columns"])
+        self.assertTrue(any("JOIN" in step for step in exercise["solution_steps"]))
+
     def test_correct_test_case_can_be_submitted(self):
         exercise = self.agent.get_exercise("eco-basic-where")
         correct_case = next(item for item in exercise["test_cases"] if item["id"] == "correct_reference")

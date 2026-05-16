@@ -38,6 +38,20 @@
               <select id="kindSelect"></select>
             </label>
           </div>
+          <label>
+            关键词
+            <input id="searchInput" placeholder="搜索题目、知识点或表名" />
+          </label>
+          <label>
+            知识点
+            <select id="conceptSelect">
+              <option value="全部">全部</option>
+            </select>
+          </label>
+          <div class="quick-actions">
+            <button id="recommendBtn" class="ghost">推荐下一题</button>
+            <button id="randomBtn" class="ghost">随机选题</button>
+          </div>
           <button id="resetBtn" class="primary">生成数据库与题目</button>
           <div id="exerciseList" class="exercise-list"></div>
         </section>
@@ -58,6 +72,11 @@
             <button id="hintBtn" class="ghost">提示</button>
           </div>
           <p id="exercisePrompt" class="prompt">点击左侧题目开始练习。</p>
+          <div id="exerciseGuide" class="guide-grid"></div>
+          <section class="focus-schema">
+            <h3>本题相关表结构</h3>
+            <div id="focusedSchemaView" class="focus-schema-grid"></div>
+          </section>
           <div class="testcase-row">
             <label>
               测试样例
