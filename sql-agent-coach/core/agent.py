@@ -5,6 +5,7 @@ import re
 import sqlite3
 import time
 import uuid
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -216,10 +217,45 @@ class SqlLearningAgent:
             messages.append("可重点检查这些知识点：" + "、".join(missing_concepts) + "。")
         return " ".join(messages)
 
-    def answer_question(self, session: CoachSession, question: str, exercise_id: str | None = None) -> str:
-        text = question.lower()
+    def answer_question(self, session: CoachSession, question: str, exercise_id: str | None = None) -> dict[str, str]:
         exercise = self._find_exercise(exercise_id) if exercise_id else None
         schema = self.get_schema_snapshot(session)
+        deterministic_answer = self._local_answer_question(schema, question, exercise)
+        tutor_answer = self.judge_agent.answer_tutor_question(
+            schema=schema,
+            exercise=self._public_exercise(exercise) if exercise else None,
+            question=question,
+            deterministic_answer=deterministic_answer,
+        )
+        return {
+            "answer": tutor_answer.answer,
+            "source": tutor_answer.source,
+            "agent": tutor_answer.agent_name,
+        }
+
+    def stream_answer_question(
+        self,
+        session: CoachSession,
+        question: str,
+        exercise_id: str | None = None,
+    ) -> Iterator[dict[str, str]]:
+        exercise = self._find_exercise(exercise_id) if exercise_id else None
+        schema = self.get_schema_snapshot(session)
+        deterministic_answer = self._local_answer_question(schema, question, exercise)
+        yield from self.judge_agent.stream_tutor_question(
+            schema=schema,
+            exercise=self._public_exercise(exercise) if exercise else None,
+            question=question,
+            deterministic_answer=deterministic_answer,
+        )
+
+    def _local_answer_question(
+        self,
+        schema: dict[str, Any],
+        question: str,
+        exercise: dict[str, Any] | None,
+    ) -> str:
+        text = question.lower()
         table_names = "、".join(table["table"] for table in schema["tables"])
 
         if any(word in text for word in ["schema", "表", "字段", "列"]):

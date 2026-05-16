@@ -348,6 +348,12 @@ th {
 #qaAnswer {
   margin-top: 12px;
   line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.72;
 }
 
 @media (max-width: 980px) {

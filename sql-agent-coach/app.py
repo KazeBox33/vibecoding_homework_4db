@@ -65,13 +65,20 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/ask":
                 session = sessions[payload["session_id"]]
                 return self._json(
-                    {
-                        "answer": agent.answer_question(
-                            session=session,
-                            question=payload.get("question", ""),
-                            exercise_id=payload.get("exercise_id"),
-                        )
-                    }
+                    agent.answer_question(
+                        session=session,
+                        question=payload.get("question", ""),
+                        exercise_id=payload.get("exercise_id"),
+                    )
+                )
+            if parsed.path == "/api/ask-stream":
+                session = sessions[payload["session_id"]]
+                return self._stream_json_lines(
+                    agent.stream_answer_question(
+                        session=session,
+                        question=payload.get("question", ""),
+                        exercise_id=payload.get("exercise_id"),
+                    )
                 )
         except KeyError as exc:
             return self._json({"error": f"缺少或无效参数：{exc}"}, status=400)
@@ -99,6 +106,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _stream_json_lines(self, events) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+        for event in events:
+            line = json.dumps(event, ensure_ascii=False) + "\n"
+            self.wfile.write(line.encode("utf-8"))
+            self.wfile.flush()
 
     def _read_json(self) -> dict:
         length = int(self.headers.get("Content-Length", "0"))

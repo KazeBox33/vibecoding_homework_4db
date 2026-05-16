@@ -7,8 +7,13 @@ from core.judge_agent import JudgeAgent, JudgeDecision
 
 class SqlLearningAgentTest(unittest.TestCase):
     def setUp(self):
+        self.env_patcher = patch.dict("os.environ", {"SQL_COACH_JUDGE_PROVIDER": "local"}, clear=False)
+        self.env_patcher.start()
         self.agent = SqlLearningAgent()
         self.session = self.agent.create_session("ecommerce")
+
+    def tearDown(self):
+        self.env_patcher.stop()
 
     def test_schema_is_generated_with_sample_data(self):
         schema = self.agent.get_schema_snapshot(self.session)
@@ -112,6 +117,19 @@ class SqlLearningAgentTest(unittest.TestCase):
         self.assertEqual(result["score"], 97)
         self.assertEqual(result["judge_source"], "llm_agent")
         self.assertEqual(result["judge_agent"], "Fake Judge Agent")
+
+    def test_stream_question_uses_local_fallback_without_api(self):
+        events = list(
+            self.agent.stream_answer_question(
+                self.session,
+                "这题需要用到什么知识？",
+                "eco-basic-where",
+            )
+        )
+        self.assertEqual(events[0]["type"], "meta")
+        self.assertEqual(events[0]["source"], "local_fallback")
+        self.assertTrue(any(event.get("type") == "delta" for event in events))
+        self.assertEqual(events[-1]["type"], "done")
 
 
 class JudgeAgentConfigTest(unittest.TestCase):

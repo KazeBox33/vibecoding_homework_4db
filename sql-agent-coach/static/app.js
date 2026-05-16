@@ -190,15 +190,65 @@ function showHint() {
 async function askAgent() {
   const question = $("questionInput").value.trim();
   if (!question) return;
-  const data = await api("/api/ask", {
+  $("askBtn").disabled = true;
+  $("askBtn").textContent = "回复中...";
+  $("qaAnswer").textContent = "SQL Tutor Agent 正在思考...\n";
+  try {
+    await streamAgentAnswer(question);
+  } catch (error) {
+    $("qaAnswer").textContent = `流式回复失败：${error.message}`;
+  } finally {
+    $("askBtn").disabled = false;
+    $("askBtn").textContent = "提问";
+  }
+}
+
+async function streamAgentAnswer(question) {
+  const response = await fetch("/api/ask-stream", {
     method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       session_id: sessionId,
       exercise_id: currentExercise?.id,
       question,
     }),
   });
-  $("qaAnswer").textContent = data.answer;
+  if (!response.ok || !response.body) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || "请求失败");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  let answerStarted = false;
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      const event = JSON.parse(line);
+      if (event.type === "meta") {
+        $("qaAnswer").textContent = `${tutorSourceLabel(event.source)}\n`;
+        answerStarted = true;
+      } else if (event.type === "delta") {
+        if (!answerStarted) {
+          $("qaAnswer").textContent = "";
+          answerStarted = true;
+        }
+        $("qaAnswer").textContent += event.text;
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    const event = JSON.parse(buffer);
+    if (event.type === "delta") $("qaAnswer").textContent += event.text;
+  }
 }
 
 function renderProgress(summary) {
@@ -219,6 +269,12 @@ function judgeLabel(source) {
   if (source === "llm_agent") return "LLM Judge Agent";
   if (source === "agent_error_fallback") return "Agent 失败后本地兜底";
   return "本地兜底";
+}
+
+function tutorSourceLabel(source) {
+  if (source === "llm_agent") return "SQL Tutor Agent 正在流式回复：";
+  if (source === "agent_error_fallback") return "Tutor Agent 调用失败，显示本地兜底：";
+  return "本地兜底回复：";
 }
 
 function tableHtml(rows) {

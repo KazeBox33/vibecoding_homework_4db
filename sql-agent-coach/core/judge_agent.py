@@ -5,6 +5,7 @@ import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from collections.abc import Iterator
 from typing import Any
 
 
@@ -14,6 +15,14 @@ class JudgeDecision:
     score: int
     feedback: str
     next_steps: list[str]
+    source: str
+    agent_name: str
+    raw: dict[str, Any] | None = None
+
+
+@dataclass
+class TutorAnswer:
+    answer: str
     source: str
     agent_name: str
     raw: dict[str, Any] | None = None
@@ -111,6 +120,81 @@ class JudgeAgent:
                 source="agent_error_fallback",
             )
 
+    def answer_tutor_question(
+        self,
+        *,
+        schema: dict[str, Any],
+        exercise: dict[str, Any] | None,
+        question: str,
+        deterministic_answer: str,
+    ) -> TutorAnswer:
+        if not self.is_enabled():
+            return TutorAnswer(
+                answer=deterministic_answer,
+                source="local_fallback",
+                agent_name=self.agent_name,
+            )
+
+        payload = self._build_tutor_payload(
+            schema=schema,
+            exercise=exercise,
+            question=question,
+            deterministic_answer=deterministic_answer,
+        )
+        try:
+            raw = self._call_openai_compatible(payload)
+            answer = self._parse_tutor_answer(raw)
+            return TutorAnswer(
+                answer=answer,
+                source="llm_agent",
+                agent_name="SQL Tutor Agent",
+                raw=raw,
+            )
+        except Exception as exc:
+            return TutorAnswer(
+                answer=f"{deterministic_answer}\n\nTutor Agent 调用失败，已使用本地提示兜底：{exc}",
+                source="agent_error_fallback",
+                agent_name="SQL Tutor Agent",
+            )
+
+    def stream_tutor_question(
+        self,
+        *,
+        schema: dict[str, Any],
+        exercise: dict[str, Any] | None,
+        question: str,
+        deterministic_answer: str,
+    ) -> Iterator[dict[str, str]]:
+        if not self.is_enabled():
+            yield {"type": "meta", "source": "local_fallback", "agent": self.agent_name}
+            yield {"type": "delta", "text": deterministic_answer}
+            yield {"type": "done"}
+            return
+
+        payload = self._build_tutor_payload(
+            schema=schema,
+            exercise=exercise,
+            question=question,
+            deterministic_answer=deterministic_answer,
+            stream=True,
+        )
+        try:
+            yield {"type": "meta", "source": "llm_agent", "agent": "SQL Tutor Agent"}
+            emitted = False
+            for text in self._call_openai_compatible_stream(payload):
+                emitted = True
+                yield {"type": "delta", "text": text}
+            if not emitted:
+                yield {"type": "delta", "text": "Tutor Agent 没有返回内容，请换一种问法再试。"}
+            yield {"type": "done"}
+        except Exception as exc:
+            yield {"type": "meta", "source": "agent_error_fallback", "agent": "SQL Tutor Agent"}
+            yield {
+                "type": "delta",
+                "text": f"{deterministic_answer}\n\nTutor Agent 调用失败，已使用本地提示兜底：{exc}",
+            }
+            yield {"type": "done"}
+
     def _fallback(
         self,
         correct: bool,
@@ -152,6 +236,37 @@ class JudgeAgent:
             payload["thinking"] = {"type": self.deepseek_thinking}
         return payload
 
+    def _build_tutor_payload(self, stream: bool = False, **data: Any) -> dict[str, Any]:
+        if stream:
+            response_instruction = "Return a direct Chinese answer. Do not output JSON."
+        else:
+            response_instruction = "Return only valid JSON with key: answer(string in Chinese)."
+        system_prompt = (
+            "You are a patient SQL tutor agent for Chinese learners. "
+            "Answer the learner's question using the provided schema and exercise. "
+            "Do not solve by dumping the full final SQL unless the learner explicitly asks for the answer. "
+            "Explain the needed concepts, table relationships, and next step. "
+            f"{response_instruction}"
+        )
+        user_prompt = json.dumps(data, ensure_ascii=False, default=str)
+        payload = {
+            "model": self.model,
+            "temperature": 0.3,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+        }
+        if stream:
+            payload["stream"] = True
+        else:
+            payload["response_format"] = {"type": "json_object"}
+        if self.reasoning_effort:
+            payload["reasoning_effort"] = self.reasoning_effort
+        if self.provider == "deepseek" and self.deepseek_thinking:
+            payload["thinking"] = {"type": self.deepseek_thinking}
+        return payload
+
     def _call_openai_compatible(self, payload: dict[str, Any]) -> dict[str, Any]:
         request = urllib.request.Request(
             self._completion_url(),
@@ -168,6 +283,37 @@ class JudgeAgent:
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"LLM endpoint returned HTTP {exc.code}: {detail}") from exc
+
+    def _call_openai_compatible_stream(self, payload: dict[str, Any]) -> Iterator[str]:
+        request = urllib.request.Request(
+            self._completion_url(),
+            data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+                for raw_line in response:
+                    line = raw_line.decode("utf-8", errors="replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        continue
+                    delta = chunk.get("choices", [{}])[0].get("delta", {})
+                    content = delta.get("content")
+                    if content:
+                        yield str(content)
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise RuntimeError(f"LLM stream endpoint returned HTTP {exc.code}: {detail}") from exc
 
     def _resolve_provider(self, requested_provider: str) -> str:
         if requested_provider != "auto":
@@ -213,3 +359,12 @@ class JudgeAgent:
             "feedback": feedback,
             "next_steps": next_steps,
         }
+
+    def _parse_tutor_answer(self, raw: dict[str, Any]) -> str:
+        content = raw["choices"][0]["message"]["content"]
+        try:
+            parsed = json.loads(content)
+            answer = str(parsed.get("answer", "")).strip()
+        except json.JSONDecodeError:
+            answer = content.strip()
+        return answer or "Tutor Agent 没有返回有效答复，请换一种问法再试。"
