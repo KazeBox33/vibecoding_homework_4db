@@ -444,6 +444,13 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function normalizePastedSql(text) {
+  const trimmed = text.trim();
+  const fullFence = trimmed.match(/^```(?:sql|sqlite)?\s*([\s\S]*?)\s*```$/i);
+  if (fullFence) return fullFence[1].trim();
+  return trimmed.replace(/^```(?:sql|sqlite)?\s*/i, "").replace(/\s*```$/i, "").trim();
+}
+
 $("resetBtn").addEventListener("click", startSession);
 $("submitBtn").addEventListener("click", submitAnswer);
 $("solutionBtn").addEventListener("click", showSolution);
@@ -469,6 +476,19 @@ $("recommendBtn").addEventListener("click", recommendExercise);
 $("difficultySelect").addEventListener("change", refreshExercises);
 $("kindSelect").addEventListener("change", refreshExercises);
 $("scenarioSelect").addEventListener("change", startSession);
+$("sqlInput").addEventListener("paste", (event) => {
+  const pasted = event.clipboardData?.getData("text");
+  if (!pasted || !pasted.includes("```")) return;
+  event.preventDefault();
+  const normalized = normalizePastedSql(pasted);
+  const input = $("sqlInput");
+  const start = input.selectionStart;
+  const end = input.selectionEnd;
+  input.value = input.value.slice(0, start) + normalized + input.value.slice(end);
+  input.selectionStart = input.selectionEnd = start + normalized.length;
+  $("feedback").className = "feedback muted";
+  $("feedback").textContent = "已自动清理粘贴内容中的 Markdown 代码块标记。";
+});
 
 init().catch((error) => {
   $("feedback").className = "feedback bad";

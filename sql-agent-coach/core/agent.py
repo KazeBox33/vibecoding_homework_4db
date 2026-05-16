@@ -118,7 +118,8 @@ class SqlLearningAgent:
 
     def evaluate_answer(self, session: CoachSession, exercise_id: str, submitted_sql: str) -> dict[str, Any]:
         exercise = self._find_exercise(exercise_id)
-        submitted_sql = submitted_sql.strip()
+        original_sql = submitted_sql
+        submitted_sql, normalization_notes = self._normalize_sql_input(submitted_sql)
 
         try:
             expected_rows = self._query(session.connection, exercise["expected_sql"])
@@ -165,6 +166,8 @@ class SqlLearningAgent:
         correct = decision.correct
         score = decision.score
         feedback = decision.feedback
+        if normalization_notes:
+            feedback = " ".join(normalization_notes) + " " + feedback
 
         attempt = Attempt(exercise_id, submitted_sql, correct, score, feedback)
         session.attempts.append(attempt)
@@ -175,6 +178,9 @@ class SqlLearningAgent:
             "error": error_message,
             "judge_source": decision.source,
             "judge_agent": decision.agent_name,
+            "original_sql": original_sql,
+            "normalized_sql": submitted_sql,
+            "normalization_notes": normalization_notes,
             "expected_sql": exercise["expected_sql"].strip(),
             "expected_rows": expected_rows,
             "actual_rows": actual_rows,
@@ -478,6 +484,21 @@ class SqlLearningAgent:
         if forbidden:
             raise UnsafeSqlError(f"检测到非只读关键字：{forbidden.group(1)}。")
         return sql
+
+    def _normalize_sql_input(self, sql: str) -> tuple[str, list[str]]:
+        cleaned = sql.strip()
+        notes: list[str] = []
+        fenced = re.fullmatch(r"```(?:sql|sqlite)?\s*(.*?)\s*```", cleaned, re.IGNORECASE | re.DOTALL)
+        if fenced:
+            cleaned = fenced.group(1).strip()
+            notes.append("已自动移除 Markdown 代码块标记，只提交其中的 SQL。")
+        else:
+            without_open = re.sub(r"^\s*```(?:sql|sqlite)?\s*", "", cleaned, flags=re.IGNORECASE)
+            without_close = re.sub(r"\s*```\s*$", "", without_open)
+            if without_close != cleaned:
+                cleaned = without_close.strip()
+                notes.append("已自动清理 SQL 前后的 Markdown 代码块标记。")
+        return cleaned, notes
 
     def _rows_equal(self, expected: list[dict[str, Any]], actual: list[dict[str, Any]]) -> bool:
         if expected == actual:

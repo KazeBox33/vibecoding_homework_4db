@@ -37,6 +37,27 @@ class SqlLearningAgentTest(unittest.TestCase):
         self.assertTrue(result["correct"])
         self.assertEqual(result["score"], 100)
 
+    def test_markdown_sql_fence_is_normalized(self):
+        result = self.agent.evaluate_answer(
+            self.session,
+            "eco-basic-where",
+            """
+            ```sql
+            SELECT name, join_date
+            FROM customers
+            WHERE city = 'Shanghai'
+            ORDER BY join_date;
+            ```
+            """,
+        )
+        self.assertTrue(result["correct"])
+        self.assertEqual(result["score"], 100)
+        self.assertIn("Markdown", result["feedback"])
+        self.assertEqual(
+            result["normalized_sql"],
+            "SELECT name, join_date\n            FROM customers\n            WHERE city = 'Shanghai'\n            ORDER BY join_date;",
+        )
+
     def test_wrong_answer_gets_feedback(self):
         result = self.agent.evaluate_answer(
             self.session,
@@ -54,6 +75,20 @@ class SqlLearningAgentTest(unittest.TestCase):
         )
         self.assertFalse(result["correct"])
         self.assertIn("只允许", result["feedback"])
+
+    def test_markdown_fence_does_not_allow_multiple_statements(self):
+        result = self.agent.evaluate_answer(
+            self.session,
+            "eco-basic-where",
+            """
+            ```sql
+            SELECT name FROM customers;
+            SELECT city FROM customers;
+            ```
+            """,
+        )
+        self.assertFalse(result["correct"])
+        self.assertIn("一次只能提交一条查询语句", result["feedback"])
 
     def test_progress_report_updates(self):
         self.agent.evaluate_answer(self.session, "eco-basic-where", "SELECT name FROM customers")
