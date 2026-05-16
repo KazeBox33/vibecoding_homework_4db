@@ -63,35 +63,56 @@
       </aside>
 
       <section class="workspace">
-        <article class="panel exercise-panel">
-          <div class="exercise-head">
-            <div>
-              <span id="exerciseMeta" class="pill">请选择题目</span>
-              <h2 id="exerciseTitle">等待生成题目</h2>
+        <div class="coach-grid">
+          <section class="panel qa-panel">
+            <div class="qa-head">
+              <div>
+                <span class="pill">SQL Agent 陪练</span>
+                <h2>Agent 答疑</h2>
+                <p>同一练习会话会记住之前的对话，用于理解追问。</p>
+              </div>
+              <button id="clearChatBtn" class="ghost">清空会话</button>
             </div>
-            <button id="hintBtn" class="ghost">提示</button>
-          </div>
-          <p id="exercisePrompt" class="prompt">点击左侧题目开始练习。</p>
-          <div id="exerciseGuide" class="guide-grid"></div>
-          <section class="focus-schema">
-            <h3>本题相关表结构</h3>
-            <div id="focusedSchemaView" class="focus-schema-grid"></div>
+            <div id="chatMessages" class="chat-messages">
+              <div class="chat-empty">可询问题目思路、表关系、聚合或 JOIN。</div>
+            </div>
+            <div class="qa-row">
+              <input id="questionInput" placeholder="例如：这题为什么要 GROUP BY？" />
+              <button id="askBtn" class="primary">提问</button>
+            </div>
           </section>
-          <div class="testcase-row">
-            <label>
-              测试样例
-              <select id="testCaseSelect"></select>
-            </label>
-            <button id="loadCaseBtn" class="ghost">载入样例</button>
-            <button id="runCaseBtn" class="primary">运行样例</button>
-          </div>
-          <div id="testCaseNote" class="testcase-note muted">选择样例后可直接运行判题。</div>
-          <textarea id="sqlInput" spellcheck="false" placeholder="在这里输入 SELECT 查询..."></textarea>
-          <div class="actions">
-            <button id="submitBtn" class="primary">提交判题</button>
-            <button id="solutionBtn" class="ghost">查看参考答案</button>
-          </div>
-        </article>
+
+          <article class="panel exercise-panel">
+            <div class="exercise-head">
+              <div>
+                <span id="exerciseMeta" class="pill">请选择题目</span>
+                <h2 id="exerciseTitle">等待生成题目</h2>
+              </div>
+              <button id="hintBtn" class="ghost">提示</button>
+            </div>
+            <p id="exercisePrompt" class="prompt">点击左侧题目开始练习。</p>
+            <div id="exerciseGuide" class="guide-grid compact"></div>
+            <div class="testcase-row">
+              <label>
+                测试样例
+                <select id="testCaseSelect"></select>
+              </label>
+              <button id="loadCaseBtn" class="ghost">载入样例</button>
+              <button id="runCaseBtn" class="primary">运行样例</button>
+            </div>
+            <div id="testCaseNote" class="testcase-note muted">选择样例后可直接运行判题。</div>
+            <textarea id="sqlInput" spellcheck="false" placeholder="在这里输入 SELECT 查询..."></textarea>
+            <div class="actions">
+              <button id="submitBtn" class="primary">提交判题</button>
+              <button id="solutionBtn" class="ghost">查看参考答案</button>
+            </div>
+          </article>
+        </div>
+
+        <section class="panel focus-schema-panel">
+          <h2>本题相关表结构</h2>
+          <div id="focusedSchemaView" class="focus-schema-grid"></div>
+        </section>
 
         <section class="panel result-panel">
           <h2>判题反馈</h2>
@@ -105,23 +126,6 @@
               <h3>参考结果</h3>
               <div id="expectedRows" class="table-wrap"></div>
             </div>
-          </div>
-        </section>
-
-        <section class="panel qa-panel">
-          <div class="qa-head">
-            <div>
-              <h2>Agent 答疑</h2>
-              <p>同一练习会话会记住之前的对话，用于理解追问。</p>
-            </div>
-            <button id="clearChatBtn" class="ghost">清空会话</button>
-          </div>
-          <div id="chatMessages" class="chat-messages">
-            <div class="chat-empty">可询问题目思路、表关系、聚合或 JOIN。</div>
-          </div>
-          <div class="qa-row">
-            <input id="questionInput" placeholder="例如：这题为什么要 GROUP BY？" />
-            <button id="askBtn" class="primary">提问</button>
           </div>
         </section>
       </section>
